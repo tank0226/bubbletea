@@ -70,6 +70,7 @@ func (r *blockRenderer) start() {
 // stop permanently halts the renderer.
 func (r *blockRenderer) stop() {
 	r.flush()
+	_, _ = r.out.Write([]byte("\r\n")) // move to the next line so the prompt will land there
 	r.done <- struct{}{}
 }
 
