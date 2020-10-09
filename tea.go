@@ -57,15 +57,20 @@ type Update func(Msg, Model) (Model, Cmd)
 // after every Update.
 type View func(Model) string
 
+// BlockView renders the program's UI from a slice of Blocks, which contain
+// positioning information and content.
+type BlockView func(Model) []Block
+
 // Program is a terminal user interface.
 type Program struct {
-	init   Init
-	update Update
-	view   View
+	init      Init
+	update    Update
+	view      View
+	blockView BlockView
 
 	mtx             sync.Mutex
 	output          *os.File // where to send output. this will usually be os.Stdout.
-	renderer        *renderer
+	renderer        renderer
 	altScreenActive bool
 
 	// CatchPanics is incredibly useful for restoring the terminal to a useable
@@ -95,12 +100,24 @@ type WindowSizeMsg struct {
 	Height int
 }
 
-// NewProgram creates a new Program.
+// NewProgram creates a new Program using the standard string-based views.
 func NewProgram(init Init, update Update, view View) *Program {
 	return &Program{
 		init:   init,
 		update: update,
 		view:   view,
+
+		output:      os.Stdout,
+		CatchPanics: true,
+	}
+}
+
+// NewProgramWithBlocks creates a new Program with block-based views.
+func NewProgramWithBlocks(init Init, update Update, view BlockView) *Program {
+	return &Program{
+		init:      init,
+		update:    update,
+		blockView: view,
 
 		output:      os.Stdout,
 		CatchPanics: true,
@@ -127,8 +144,16 @@ func (p *Program) Start() error {
 		}()
 	}
 
-	p.renderer = newRenderer(p.output, &p.mtx)
+	// Initialize approprate renderer
+	if p.view != nil {
+		p.renderer = newStringRenderer(p.output, &p.mtx)
+	} else if p.blockView != nil {
+		p.renderer = newBlockRenderer(p.output, &p.mtx)
+	} else {
+		panic("could not determine which renderer we should use")
+	}
 
+	// Set terminal to raw mode, hide cursor and so on
 	err := initTerminal()
 	if err != nil {
 		return err
@@ -143,12 +168,18 @@ func (p *Program) Start() error {
 		}()
 	}
 
-	// Start renderer
-	p.renderer.start()
-	p.renderer.altScreenActive = p.altScreenActive
-
-	// Render initial view
-	p.renderer.write(p.view(model))
+	// Start renderer and render initial view
+	switch r := p.renderer.(type) {
+	case *stringRenderer:
+		r.start()
+		r.altScreenActive = p.altScreenActive
+		r.write(p.view(model))
+	case *blockRenderer:
+		r.start()
+		r.write(p.blockView(model))
+	default:
+		panic("can't infer renderer")
+	}
 
 	// Subscribe to user input
 	go func() {
@@ -199,7 +230,12 @@ func (p *Program) Start() error {
 
 			// Handle quit message
 			if _, ok := msg.(quitMsg); ok {
-				p.renderer.stop()
+				switch r := p.renderer.(type) {
+				case *stringRenderer:
+					r.stop()
+				case *blockRenderer:
+					r.stop()
+				}
 				close(done)
 				return nil
 			}
@@ -213,11 +249,26 @@ func (p *Program) Start() error {
 			}
 
 			// Process internal messages for the renderer
-			p.renderer.handleMessages(msg)
+			switch r := p.renderer.(type) {
+			case *stringRenderer:
+				r.handleMessages(msg)
+			case *blockRenderer:
+				r.handleMessages(msg)
+			}
+
 			var cmd Cmd
 			model, cmd = p.update(msg, model) // run update
 			cmds <- cmd                       // process command (if any)
-			p.renderer.write(p.view(model))   // send view to renderer
+
+			// Send view off for rendering
+			switch r := p.renderer.(type) {
+			case *stringRenderer:
+				r.write(p.view(model))
+			case *blockRenderer:
+				r.write(p.blockView(model))
+			default:
+				panic("can't infer renderer")
+			}
 		}
 	}
 }
@@ -231,8 +282,11 @@ func (p *Program) EnterAltScreen() {
 	moveCursor(p.output, 0, 0)
 
 	p.altScreenActive = true
-	if p.renderer != nil {
-		p.renderer.altScreenActive = p.altScreenActive
+
+	switch r := p.renderer.(type) {
+	case *stringRenderer:
+		r.altScreenActive = p.altScreenActive
+	case *blockRenderer:
 	}
 }
 
@@ -243,8 +297,11 @@ func (p *Program) ExitAltScreen() {
 	fmt.Fprintf(p.output, te.CSI+te.ExitAltScreenSeq)
 
 	p.altScreenActive = false
-	if p.renderer != nil {
-		p.renderer.altScreenActive = p.altScreenActive
+
+	switch r := p.renderer.(type) {
+	case *stringRenderer:
+		r.altScreenActive = p.altScreenActive
+	case *blockRenderer:
 	}
 }
 

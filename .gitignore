@@ -1,5 +1,6 @@
 .DS_Store
 .envrc
+*.log
 
 examples/fullscreen/fullscreen
 examples/http/http
@@ -10,5 +11,6 @@ examples/spinner/spinner
 examples/textinput/textinput
 examples/textinputs/textinputs
 examples/views/views
+examples/blocks/blocks
 tutorials/basics/basics
 tutorials/commands/commands
