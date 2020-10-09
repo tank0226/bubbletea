@@ -101,6 +101,9 @@ func (r *blockRenderer) write(b []Block) {
 
 // flush renders the buffer.
 func (r *blockRenderer) flush() {
+	if r.buffer == nil {
+		return
+	}
 
 	sort.Sort(byZIndex(r.buffer))
 	out := newBlockBuffer()
@@ -146,10 +149,9 @@ func (r *blockRenderer) flush() {
 		out.cursorBack(x)
 	}
 
-	//_, _ = out.WriteString("\r\n")
-
 	_, _ = r.out.Write(out.Bytes())
-	r.linesRendered = linesRendered // + 1
+	r.linesRendered = linesRendered
+	r.buffer = nil
 }
 
 func (r *blockRenderer) handleMessages(msg Msg) {
