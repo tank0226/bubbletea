@@ -2,6 +2,9 @@ package tea
 
 import "errors"
 
+// MouseMsg contains information about a mouse event and are sent to a programs
+// update function when mouse activity occurs. Note that the mouse must first
+// be enabled via in order the mouse events to be received.
 type MouseMsg MouseEvent
 
 // MouseEvent represents a mouse event, which could be a click, a scroll wheel
@@ -29,6 +32,7 @@ func (m MouseEvent) String() (s string) {
 // MouseEventType indicates the type of mouse event occurring.
 type MouseEventType int
 
+// Mouse event types.
 const (
 	MouseUnknown MouseEventType = iota
 	MouseLeft
@@ -64,7 +68,9 @@ func parseX10MouseEvent(buf []byte) (m MouseEvent, err error) {
 		return m, errors.New("not an X10 mouse event")
 	}
 
-	e := buf[3] - 32
+	const byteOffset = 32
+
+	e := buf[3] - byteOffset
 
 	const (
 		bitShift  = 0b0000_0100
@@ -119,8 +125,8 @@ func parseX10MouseEvent(buf []byte) (m MouseEvent, err error) {
 	}
 
 	// (1,1) is the upper left. We subtract 1 to normalize it to (0,0).
-	m.X = int(buf[4]) - 32 - 1
-	m.Y = int(buf[5]) - 32 - 1
+	m.X = int(buf[4]) - byteOffset - 1
+	m.Y = int(buf[5]) - byteOffset - 1
 
 	return m, nil
 }

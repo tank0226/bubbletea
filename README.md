@@ -50,7 +50,7 @@ This tutorial assumes you have a working knowledge of Go.
 
 ## Enough! Let's get to it.
 
-For this tutorial we're making a to-do list.
+For this tutorial we're making a shopping list.
 
 To start we'll define our package and import some libraries. Our only external
 import will be the Bubble Tea library, which we'll call `tea` for short.
@@ -88,23 +88,29 @@ type model struct {
 
 ## Initialization
 
-Next we'll define our application’s initial state. We’ll store our initial
-model in a simple variable, and then define the `Init` method.  `Init` can
-return a `Cmd` that could perform some initial I/O. For now, we don't need to
-do any I/O, so for the command we'll just return `nil`, which translates to "no
-command."
+Next we’ll define our application’s initial state. In this case we’re defining
+a function to return our initial model, however we could just as easily define
+the initial model as a variable elsewhere, too.
 
 ```go
-var initialModel = model{
-    // Our to-do list is just a grocery list
-    choices:  []string{"Buy carrots", "Buy celery", "Buy kohlrabi"},
+func initialModel() model {
+	return model{
+		// Our shopping list is a grocery list
+		choices:  []string{"Buy carrots", "Buy celery", "Buy kohlrabi"},
 
-    // A map which indicates which choices are selected. We're using
-    // the  map like a mathematical set. The keys refer to the indexes
-    // of the `choices` slice, above.
-    selected: make(map[int]struct{}),
+		// A map which indicates which choices are selected. We're using
+		// the  map like a mathematical set. The keys refer to the indexes
+		// of the `choices` slice, above.
+		selected: make(map[int]struct{}),
+	}
 }
+```
 
+Next we define the `Init` method. `Init` can return a `Cmd` that could perform
+some initial I/O. For now, we don't need to do any I/O, so for the command
+we'll just return `nil`, which translates to "no command."
+
+```go
 func (m model) Init() tea.Cmd {
     // Just return `nil`, which means "no I/O right now, please."
     return nil
@@ -113,15 +119,15 @@ func (m model) Init() tea.Cmd {
 
 ## The Update Method
 
-Next we'll define the update method. The update function is called when
-"things happen." Its job is to look at what has happened and return an updated
-model in response to whatever happened. It can also return a `Cmd` and make
-more things happen, but for now don't worry about that part.
+Next up is the update method. The update function is called when ”things
+happen.” Its job is to look at what has happened and return an updated model in
+response. It can also return a `Cmd` to make more things happen, but for now
+don't worry about that part.
 
-In our case, when a user presses the down arrow, `update`'s job is to notice
+In our case, when a user presses the down arrow, `Update`’s job is to notice
 that the down arrow was pressed and move the cursor accordingly (or not).
 
-The "something happened" comes in the form of a `Msg`, which can be any type.
+The “something happened” comes in the form of a `Msg`, which can be any type.
 Messages are the result of some I/O that took place, such as a keypress, timer
 tick, or a response from a server.
 
@@ -175,18 +181,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 ```
 
-You may have noticed that "ctrl+c" and "q" above return a `tea.Quit` command
-with the model. That's a special command which instructs the Bubble Tea runtime
-to quit, exiting the program.
+You may have noticed that <kbd>ctrl+c</kbd> and <kbd>q</kbd> above return
+a `tea.Quit` command with the model. That’s a special command which instructs
+the Bubble Tea runtime to quit, exiting the program.
 
 ## The View Method
 
-At last, it's time to render our UI. Of all the methods, the view is the
+At last, it’s time to render our UI. Of all the methods, the view is the
 simplest. We look at the  model in it's current state and use it to return
 a `string`.  That string is our UI!
 
-Because the view describes the entire UI of your application, you don't have
-to worry about redraw logic and stuff like that. Bubble Tea takes care of it
+Because the view describes the entire UI of your application, you don’t have to
+worry about redrawing logic and stuff like that. Bubble Tea takes care of it
 for you.
 
 ```go
@@ -228,7 +234,7 @@ The last step is to simply run our program. We pass our initial model to
 
 ```go
 func main() {
-    p := tea.NewProgram(initialModel)
+    p := tea.NewProgram(initialModel())
     if err := p.Start(); err != nil {
         fmt.Printf("Alas, there's been an error: %v", err)
         os.Exit(1)
@@ -236,7 +242,7 @@ func main() {
 }
 ```
 
-## What's Next?
+## What’s Next?
 
 This tutorial covers the basics of building an interactive terminal UI, but
 in the real world you'll also need to perform I/O. To learn about that have a
@@ -252,12 +258,14 @@ there are [Go Docs][docs].
 ## Libraries we use with Bubble Tea
 
 * [Bubbles][bubbles]: Common Bubble Tea components such as text inputs, viewports, spinners and so on
-* [Lip Gloss][lipgloss]: Style, format and layout tools for terminal applications. Built on [Termenv][termenv] and [Reflow][reflow] below
+* [Lip Gloss][lipgloss]: Style, format and layout tools for terminal applications
+* [Harmonica][harmonica]: A spring animation library for smooth, natural motion
 * [Termenv][termenv]: Advanced ANSI styling for terminal applications
 * [Reflow][reflow]: Advanced ANSI-aware methods for working with text
 
 [bubbles]: https://github.com/charmbracelet/bubbles
 [lipgloss]: https://github.com/charmbracelet/lipgloss
+[harmonica]: https://github.com/charmbracelet/harmonica
 [termenv]: https://github.com/muesli/termenv
 [reflow]: https://github.com/muesli/reflow
 
@@ -275,7 +283,14 @@ For some Bubble Tea programs in production, see:
 * [ticker](https://github.com/achannarasappa/ticker): a terminal stock watcher and stock position tracker
 * [tz](https://github.com/oz/tz): an aid for scheduling across multiple time zones
 * [httpit](https://github.com/gonetx/httpit): a rapid http(s) benchmark tool
-* [gembro](https://git.sr.ht/~rafael/gembro): a Gemini browser
+* [gembro](https://git.sr.ht/~rafael/gembro): a mouse-driven Gemini browser
+* [fm](https://github.com/knipferrc/fm): a terminal-based file manager
+* [StormForge Optimize – Controller](https://github.com/thestormforge/optimize-controller): a tool for experimenting with application configurations in Kubernetes
+* [Slides](https://github.com/maaslalani/slides): a markdown-based presentation tool
+* [Typer](https://github.com/maaslalani/typer): a typing test
+* [AT CLI](https://github.com/daskycodes/at_cli): a utility to for executing AT Commands via serial port connections
+* [Canard](https://github.com/mrusme/canard): an RSS client
+* [sqlite-tui](https://github.com/mathaou/sqlite-tui): an keyboard and mouse driven SQLite database browser
 
 ## Feedback
 
@@ -292,11 +307,9 @@ Czaplicki et alia and the excellent [go-tea][gotea] by TJ Holowaychuk.
 [elm]: https://guide.elm-lang.org/architecture/
 [gotea]: https://github.com/tj/go-tea
 
-
 ## License
 
 [MIT](https://github.com/charmbracelet/bubbletea/raw/master/LICENSE)
-
 
 ***
 
@@ -304,4 +317,4 @@ Part of [Charm](https://charm.sh).
 
 <a href="https://charm.sh/"><img alt="The Charm logo" src="https://stuff.charm.sh/charm-badge-unrounded.jpg" width="400"></a>
 
-Charm热爱开源! / Charm loves open source!
+Charm热爱开源 • Charm loves open source
