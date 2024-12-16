@@ -20,11 +20,11 @@ type responseMsg struct{}
 // Simulate a process that sends events at an irregular interval in real time.
 // In this case, we'll send events on the channel at a random interval between
 // 100 to 1000 milliseconds. As a command, Bubble Tea will run this
-// asyncronously.
+// asynchronously.
 func listenForActivity(sub chan struct{}) tea.Cmd {
 	return func() tea.Msg {
 		for {
-			time.Sleep(time.Millisecond * time.Duration(rand.Int63n(900)+100))
+			time.Sleep(time.Millisecond * time.Duration(rand.Int63n(900)+100)) // nolint:gosec
 			sub <- struct{}{}
 		}
 	}
@@ -46,7 +46,7 @@ type model struct {
 
 func (m model) Init() tea.Cmd {
 	return tea.Batch(
-		spinner.Tick,
+		m.spinner.Tick,
 		listenForActivity(m.sub), // generate activity
 		waitForActivity(m.sub),   // wait for activity
 	)
@@ -78,15 +78,13 @@ func (m model) View() string {
 }
 
 func main() {
-	rand.Seed(time.Now().UTC().UnixNano())
-
 	p := tea.NewProgram(model{
 		sub:     make(chan struct{}),
-		spinner: spinner.NewModel(),
+		spinner: spinner.New(),
 	})
 
-	if p.Start() != nil {
-		fmt.Println("could not start program")
+	if _, err := p.Run(); err != nil {
+		fmt.Println("could not start program:", err)
 		os.Exit(1)
 	}
 }

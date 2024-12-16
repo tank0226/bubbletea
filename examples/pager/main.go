@@ -5,69 +5,35 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/mattn/go-runewidth"
+	"github.com/charmbracelet/lipgloss"
 )
 
-const (
-	// You generally won't need this unless you're processing stuff with some
-	// pretty complicated ANSI escape sequences. Turn it on if you notice
-	// flickering.
-	//
-	// Also note that high performance rendering only works for programs that
-	// use the full size of the terminal. We're enabling that below with
-	// tea.EnterAltScreen().
-	useHighPerformanceRenderer = false
+// You generally won't need this unless you're processing stuff with
+// complicated ANSI escape sequences. Turn it on if you notice flickering.
+//
+// Also keep in mind that high performance rendering only works for programs
+// that use the full size of the terminal. We're enabling that below with
+// tea.EnterAltScreen().
+const useHighPerformanceRenderer = false
 
-	headerHeight = 3
-	footerHeight = 3
+var (
+	titleStyle = func() lipgloss.Style {
+		b := lipgloss.RoundedBorder()
+		b.Right = "├"
+		return lipgloss.NewStyle().BorderStyle(b).Padding(0, 1)
+	}()
+
+	infoStyle = func() lipgloss.Style {
+		b := lipgloss.RoundedBorder()
+		b.Left = "┤"
+		return titleStyle.BorderStyle(b)
+	}()
 )
-
-func main() {
-
-	// Load some text to render
-	content, err := ioutil.ReadFile("artichoke.md")
-	if err != nil {
-		fmt.Println("could not load file:", err)
-		os.Exit(1)
-	}
-
-	// Set PAGER_LOG to a path to log to a file. For example:
-	//
-	//     export PAGER_LOG=debug.log
-	//
-	// This becomes handy when debugging stuff since you can't debug to stdout
-	// because the UI is occupying it!
-	path := os.Getenv("PAGER_LOG")
-	if path != "" {
-		f, err := tea.LogToFile(path, "pager")
-		if err != nil {
-			fmt.Printf("Could not open file %s: %v", path, err)
-			os.Exit(1)
-		}
-		defer f.Close()
-	}
-
-	p := tea.NewProgram(model{content: string(content)})
-
-	// Use the full size of the terminal in its "alternate screen buffer"
-	p.EnterAltScreen()
-	defer p.ExitAltScreen()
-
-	// We also turn on mouse support so we can track the mouse wheel
-	p.EnableMouseCellMotion()
-	defer p.DisableMouseCellMotion()
-
-	if err := p.Start(); err != nil {
-		fmt.Println("could not run program:", err)
-		os.Exit(1)
-	}
-}
 
 type model struct {
 	content  string
@@ -87,28 +53,35 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// Ctrl+c exits
-		if k := msg.String(); k == "ctrl+c" || k == "q" {
+		if k := msg.String(); k == "ctrl+c" || k == "q" || k == "esc" {
 			return m, tea.Quit
 		}
 
 	case tea.WindowSizeMsg:
-		verticalMargins := headerHeight + footerHeight
+		headerHeight := lipgloss.Height(m.headerView())
+		footerHeight := lipgloss.Height(m.footerView())
+		verticalMarginHeight := headerHeight + footerHeight
 
 		if !m.ready {
-			// Since this program is using the full size of the viewport we need
-			// to wait until we've received the window dimensions before we
-			// can initialize the viewport. The initial dimensions come in
+			// Since this program is using the full size of the viewport we
+			// need to wait until we've received the window dimensions before
+			// we can initialize the viewport. The initial dimensions come in
 			// quickly, though asynchronously, which is why we wait for them
 			// here.
-			m.viewport = viewport.Model{Width: msg.Width, Height: msg.Height - verticalMargins}
+			m.viewport = viewport.New(msg.Width, msg.Height-verticalMarginHeight)
 			m.viewport.YPosition = headerHeight
 			m.viewport.HighPerformanceRendering = useHighPerformanceRenderer
 			m.viewport.SetContent(m.content)
 			m.ready = true
+
+			// This is only necessary for high performance rendering, which in
+			// most cases you won't need.
+			//
+			// Render the viewport one line below the header.
+			m.viewport.YPosition = headerHeight + 1
 		} else {
 			m.viewport.Width = msg.Width
-			m.viewport.Height = msg.Height - verticalMargins
+			m.viewport.Height = msg.Height - verticalMarginHeight
 		}
 
 		if useHighPerformanceRenderer {
@@ -120,16 +93,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Because we're using the viewport's default update function (with pager-
-	// style navigation) it's important that the viewport's update function:
-	//
-	// * Receives messages from the Bubble Tea runtime
-	// * Returns commands to the Bubble Tea runtime
-	//
+	// Handle keyboard and mouse events in the viewport
 	m.viewport, cmd = m.viewport.Update(msg)
-	if useHighPerformanceRenderer {
-		cmds = append(cmds, cmd)
-	}
+	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
 }
@@ -138,21 +104,44 @@ func (m model) View() string {
 	if !m.ready {
 		return "\n  Initializing..."
 	}
+	return fmt.Sprintf("%s\n%s\n%s", m.headerView(), m.viewport.View(), m.footerView())
+}
 
-	headerTop := "╭───────────╮"
-	headerMid := "│ Mr. Pager ├"
-	headerBot := "╰───────────╯"
-	headerMid += strings.Repeat("─", m.viewport.Width-runewidth.StringWidth(headerMid))
-	header := fmt.Sprintf("%s\n%s\n%s", headerTop, headerMid, headerBot)
+func (m model) headerView() string {
+	title := titleStyle.Render("Mr. Pager")
+	line := strings.Repeat("─", max(0, m.viewport.Width-lipgloss.Width(title)))
+	return lipgloss.JoinHorizontal(lipgloss.Center, title, line)
+}
 
-	footerTop := "╭──────╮"
-	footerMid := fmt.Sprintf("┤ %3.f%% │", m.viewport.ScrollPercent()*100)
-	footerBot := "╰──────╯"
-	gapSize := m.viewport.Width - runewidth.StringWidth(footerMid)
-	footerTop = strings.Repeat(" ", gapSize) + footerTop
-	footerMid = strings.Repeat("─", gapSize) + footerMid
-	footerBot = strings.Repeat(" ", gapSize) + footerBot
-	footer := fmt.Sprintf("%s\n%s\n%s", footerTop, footerMid, footerBot)
+func (m model) footerView() string {
+	info := infoStyle.Render(fmt.Sprintf("%3.f%%", m.viewport.ScrollPercent()*100))
+	line := strings.Repeat("─", max(0, m.viewport.Width-lipgloss.Width(info)))
+	return lipgloss.JoinHorizontal(lipgloss.Center, line, info)
+}
 
-	return fmt.Sprintf("%s\n%s\n%s", header, m.viewport.View(), footer)
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func main() {
+	// Load some text for our viewport
+	content, err := os.ReadFile("artichoke.md")
+	if err != nil {
+		fmt.Println("could not load file:", err)
+		os.Exit(1)
+	}
+
+	p := tea.NewProgram(
+		model{content: string(content)},
+		tea.WithAltScreen(),       // use the full size of the terminal in its "alternate screen buffer"
+		tea.WithMouseCellMotion(), // turn on mouse support so we can track the mouse wheel
+	)
+
+	if _, err := p.Run(); err != nil {
+		fmt.Println("could not run program:", err)
+		os.Exit(1)
+	}
 }

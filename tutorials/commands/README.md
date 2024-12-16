@@ -1,14 +1,14 @@
 Commands in Bubble Tea
 ======================
 
-This is the second tutorial for Bubble Tea covering commands, which deal with
-I/O. The tutorial assumes you have a working knowlege of Go and a decent
+This is the second tutorial for Bubble Tea, covering commands, which deal with
+I/O. The tutorial assumes you have a working knowledge of Go and a decent
 understanding of [the first tutorial][basics].
 
 You can find the non-annotated version of this program [on GitHub][source].
 
-[basics]: http://github.com/charmbracelet/bubbletea/tree/master/tutorials/basics
-[source]: https://github.com/charmbracelet/bubbletea/master/tutorials/commands
+[basics]: https://github.com/charmbracelet/bubbletea/tree/master/tutorials/basics
+[source]: https://github.com/charmbracelet/bubbletea/blob/master/tutorials/commands/main.go
 
 ## Let's Go!
 
@@ -50,7 +50,7 @@ type model struct {
 `Cmd`s are functions that perform some I/O and then return a `Msg`. Checking the
 time, ticking a timer, reading from the disk, and network stuff are all I/O and
 should be run through commands. That might sound harsh, but it will keep your
-Bubble Tea program staightforward and simple.
+Bubble Tea program straightforward and simple.
 
 Anyway, let's write a `Cmd` that makes a request to a server and returns the
 result as a `Msg`.
@@ -82,12 +82,12 @@ func (e errMsg) Error() string { return e.err.Error() }
 ```
 
 And notice that we've defined two new `Msg` types. They can be any type, even
-an empty struct. We'll come back to them later later in our update function.
+an empty struct. We'll come back to them later in our update function.
 First, let's write our initialization function.
 
 ## The Initialization Method
 
-The initilization method is very simple: we return the `Cmd` we made earlier.
+The initialization method is very simple: we return the `Cmd` we made earlier.
 Note that we don't call the function; the Bubble Tea runtime will do that when
 the time is right.
 
@@ -124,7 +124,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
     case tea.KeyMsg:
         // Ctrl+c exits. Even with short running programs it's good to have
-        // a quit key, just incase your logic is off. Users will be very
+        // a quit key, just in case your logic is off. Users will be very
         // annoyed if they can't exit.
         if msg.Type == tea.KeyCtrlC {
             return m, tea.Quit
@@ -165,26 +165,36 @@ func (m model) View() string {
 
 The only thing left to do is run the program, so let's do that! Our initial
 model doesn't need any data at all in this case, we just initialize it with
-as a `struct` with defaults.
+a `model` struct with default values.
 
 ```go
 func main() {
-    if err := tea.NewProgram(model{}).Start(); err != nil {
+    if _, err := tea.NewProgram(model{}).Run(); err != nil {
         fmt.Printf("Uh oh, there was an error: %v\n", err)
         os.Exit(1)
     }
 }
 ```
 
-And that's that. There's one more thing you that is helpful to know about
+And that's that. There's one more thing that is helpful to know about
 `Cmd`s, though.
 
 ## One More Thing About Commands
 
 `Cmd`s are defined in Bubble Tea as `type Cmd func() Msg`. So they're just
 functions that don't take any arguments and return a `Msg`, which can be
-anything. If you need to pass arguments to a command, you just make a function
+any type. If you need to pass arguments to a command, you just make a function
 that returns a command. For example:
+
+```go
+func cmdWithArg(id int) tea.Cmd {
+    return func() tea.Msg {
+        return someMsg{id: id}
+    }
+}
+```
+
+A more real-world example looks like:
 
 ```go
 func checkSomeUrl(url string) tea.Cmd {
@@ -192,51 +202,46 @@ func checkSomeUrl(url string) tea.Cmd {
         c := &http.Client{Timeout: 10 * time.Second}
         res, err := c.Get(url)
         if err != nil {
-            return errMsg(err)
+            return errMsg{err}
         }
         return statusMsg(res.StatusCode)
     }
 }
 ```
 
-Just make sure you do as much stuff as you can in the innermost function,
-because that's the one that runs asynchronously.
+Anyway, just make sure you do as much stuff as you can in the innermost
+function, because that's the one that runs asynchronously.
 
-## Anyway, Now What?
+## Now What?
 
 After doing this tutorial and [the previous one][basics] you should be ready to
-build a Bubble Tea program of your own.  We also recommend that you look at the
+build a Bubble Tea program of your own. We also recommend that you look at the
 Bubble Tea [example programs][examples] as well as [Bubbles][bubbles],
 a component library for Bubble Tea.
 
 And, of course, check out the [Go Docs][docs].
 
-### Bubble Tea in the Wild
-
-For some Bubble Tea programs in production, see:
-
-* [Glow](https://github.com/charmbracelet/glow): a markdown reader, browser and online markdown stash
-* [The Charm Tool](https://github.com/charmbracelet/charm): the Charm user account manager
-
-[examples]: http://github.com/charmbracelet/bubbletea/tree/master/examples
+[bubbles]: https://github.com/charmbracelet/bubbles
 [docs]: https://pkg.go.dev/github.com/charmbracelet/bubbletea?tab=doc
-[bubbles]: https://github.com/charmbracelet/bubbles
+[examples]: https://github.com/charmbracelet/bubbletea/tree/master/examples
 
-### Libraries we use with Bubble Tea
+## Additional Resources
 
-* [Bubbles][bubbles] various Bubble Tea components we've built
-* [Termenv][termenv]: Advanced ANSI styling for terminal applications
-* [Reflow][reflow]: ANSI-aware methods for reflowing blocks of text
-* [go-runewidth][runewidth]: Get the physical width of strings in terms of terminal cells. Many runes, such as East Asian charcters and emojis, are two cells wide, so measuring a layout with `len()` often won't cut it!
-
-[termenv]: https://github.com/muesli/termenv
-[reflow]: https://github.com/muesli/reflow
-[bubbles]: https://github.com/charmbracelet/bubbles
-[runewidth]: https://github.com/mattn/go-runewidth
+* [Libraries we use with Bubble Tea](https://github.com/charmbracelet/bubbletea/#libraries-we-use-with-bubble-tea)
+* [Bubble Tea in the Wild](https://github.com/charmbracelet/bubbletea/#bubble-tea-in-the-wild)
 
 ### Feedback
 
 We'd love to hear your thoughts on this tutorial. Feel free to drop us a note!
 
 * [Twitter](https://twitter.com/charmcli)
-* [The Fediverse](https://mastodon.technology/@charm)
+* [The Fediverse](https://mastodon.social/@charmcli)
+* [Discord](https://charm.sh/chat)
+
+***
+
+Part of [Charm](https://charm.sh).
+
+<a href="https://charm.sh/"><img alt="The Charm logo" src="https://stuff.charm.sh/charm-badge.jpg" width="400"></a>
+
+Charm热爱开源 • Charm loves open source

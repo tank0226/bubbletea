@@ -16,13 +16,8 @@ type model int
 type tickMsg time.Time
 
 func main() {
-	p := tea.NewProgram(model(5))
-
-	// Bubble Tea will automatically exit the alternate screen buffer.
-	p.EnterAltScreen()
-	err := p.Start()
-
-	if err != nil {
+	p := tea.NewProgram(model(5), tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -33,24 +28,18 @@ func (m model) Init() tea.Cmd {
 
 func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := message.(type) {
-
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c":
-			fallthrough
-		case "esc":
-			fallthrough
-		case "q":
+		case "q", "esc", "ctrl+c":
 			return m, tea.Quit
 		}
 
 	case tickMsg:
-		m -= 1
+		m--
 		if m <= 0 {
 			return m, tea.Quit
 		}
 		return m, tick()
-
 	}
 
 	return m, nil

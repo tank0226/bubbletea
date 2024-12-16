@@ -1,71 +1,68 @@
+//go:build windows
 // +build windows
 
 package tea
 
 import (
-	"io"
+	"fmt"
 	"os"
 
-	"github.com/containerd/console"
+	"github.com/charmbracelet/x/term"
 	"golang.org/x/sys/windows"
 )
 
-func (p *Program) initInput() error {
-	if !p.inputIsTTY {
-		return nil
+func (p *Program) initInput() (err error) {
+	// Save stdin state and enable VT input
+	// We also need to enable VT
+	// input here.
+	if f, ok := p.input.(term.File); ok && term.IsTerminal(f.Fd()) {
+		p.ttyInput = f
+		p.previousTtyInputState, err = term.MakeRaw(p.ttyInput.Fd())
+		if err != nil {
+			return err
+		}
+
+		// Enable VT input
+		var mode uint32
+		if err := windows.GetConsoleMode(windows.Handle(p.ttyInput.Fd()), &mode); err != nil {
+			return fmt.Errorf("error getting console mode: %w", err)
+		}
+
+		if err := windows.SetConsoleMode(windows.Handle(p.ttyInput.Fd()), mode|windows.ENABLE_VIRTUAL_TERMINAL_INPUT); err != nil {
+			return fmt.Errorf("error setting console mode: %w", err)
+		}
 	}
 
-	// If input's a TTY this should always succeed.
-	f, ok := p.input.(*os.File)
-	if !ok {
-		return errInputIsNotAFile
+	// Save output screen buffer state and enable VT processing.
+	if f, ok := p.output.(term.File); ok && term.IsTerminal(f.Fd()) {
+		p.ttyOutput = f
+		p.previousOutputState, err = term.GetState(f.Fd())
+		if err != nil {
+			return err
+		}
+
+		var mode uint32
+		if err := windows.GetConsoleMode(windows.Handle(p.ttyOutput.Fd()), &mode); err != nil {
+			return fmt.Errorf("error getting console mode: %w", err)
+		}
+
+		if err := windows.SetConsoleMode(windows.Handle(p.ttyOutput.Fd()), mode|windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING); err != nil {
+			return fmt.Errorf("error setting console mode: %w", err)
+		}
 	}
 
-	if p.inputStatus == managedInput {
-		// Save a reference to the current stdin then replace stdin with our
-		// input. We do this so we can hand input off to containerd/console to
-		// set raw mode, and do it in this fashion because the method
-		// console.ConsoleFromFile isn't supported on Windows.
-		p.windowsStdin = os.Stdin
-		os.Stdin = f
-	}
-
-	// Note: this will panic if it fails.
-	c := console.Current()
-	p.console = c
-
-	return nil
+	return
 }
 
-// restoreInput restores stdout in the event that we placed it aside to handle
-// input with CONIN$, above.
-func (p *Program) restoreInput() error {
-	if p.windowsStdin != nil {
-		os.Stdin = p.windowsStdin
-	}
-
-	return nil
-}
-
+// Open the Windows equivalent of a TTY.
 func openInputTTY() (*os.File, error) {
-	f, err := os.OpenFile("CONIN$", os.O_RDWR, 0644)
+	f, err := os.OpenFile("CONIN$", os.O_RDWR, 0o644)
 	if err != nil {
 		return nil, err
 	}
 	return f, nil
 }
 
-// enableAnsiColors enables support for ANSI color sequences in Windows
-// default console. Note that this only works with Windows 10.
-func enableAnsiColors(w io.Writer) {
-	f, ok := w.(*os.File)
-	if !ok {
-		return
-	}
+const suspendSupported = false
 
-	stdout := windows.Handle(f.Fd())
-	var originalMode uint32
-
-	_ = windows.GetConsoleMode(stdout, &originalMode)
-	_ = windows.SetConsoleMode(stdout, originalMode|windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING)
-}
+func suspendProcess() {}

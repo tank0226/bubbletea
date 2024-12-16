@@ -32,7 +32,7 @@ func main() {
 	m := model{}
 	m.resetSpinner()
 
-	if err := tea.NewProgram(m).Start(); err != nil {
+	if _, err := tea.NewProgram(m).Run(); err != nil {
 		fmt.Println("could not run program:", err)
 		os.Exit(1)
 	}
@@ -44,29 +44,29 @@ type model struct {
 }
 
 func (m model) Init() tea.Cmd {
-	return spinner.Tick
+	return m.spinner.Tick
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
+		case "ctrl+c", "q", "esc":
+			return m, tea.Quit
 		case "h", "left":
 			m.index--
-			if m.index <= 0 {
+			if m.index < 0 {
 				m.index = len(spinners) - 1
 			}
 			m.resetSpinner()
-			return m, spinner.Tick
+			return m, m.spinner.Tick
 		case "l", "right":
 			m.index++
 			if m.index >= len(spinners) {
 				m.index = 0
 			}
 			m.resetSpinner()
-			return m, spinner.Tick
-		case "ctrl+c", "q":
-			return m, tea.Quit
+			return m, m.spinner.Tick
 		default:
 			return m, nil
 		}
@@ -80,7 +80,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) resetSpinner() {
-	m.spinner = spinner.NewModel()
+	m.spinner = spinner.New()
 	m.spinner.Style = spinnerStyle
 	m.spinner.Spinner = spinners[m.index]
 }

@@ -3,13 +3,34 @@ package tea
 import (
 	"fmt"
 	"testing"
+	"time"
 )
 
-func TestSequentially(t *testing.T) {
-	var expectedErrMsg = fmt.Errorf("some err")
-	var expectedStrMsg = "some msg"
+func TestEvery(t *testing.T) {
+	expected := "every ms"
+	msg := Every(time.Millisecond, func(t time.Time) Msg {
+		return expected
+	})()
+	if expected != msg {
+		t.Fatalf("expected a msg %v but got %v", expected, msg)
+	}
+}
 
-	var nilReturnCmd = func() Msg {
+func TestTick(t *testing.T) {
+	expected := "tick"
+	msg := Tick(time.Millisecond, func(t time.Time) Msg {
+		return expected
+	})()
+	if expected != msg {
+		t.Fatalf("expected a msg %v but got %v", expected, msg)
+	}
+}
+
+func TestSequentially(t *testing.T) {
+	expectedErrMsg := fmt.Errorf("some err")
+	expectedStrMsg := "some msg"
+
+	nilReturnCmd := func() Msg {
 		return nil
 	}
 
@@ -21,6 +42,11 @@ func TestSequentially(t *testing.T) {
 		{
 			name:     "all nil",
 			cmds:     []Cmd{nilReturnCmd, nilReturnCmd},
+			expected: nil,
+		},
+		{
+			name:     "null cmds",
+			cmds:     []Cmd{nil, nil},
 			expected: nil,
 		},
 		{
@@ -53,4 +79,29 @@ func TestSequentially(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBatch(t *testing.T) {
+	t.Run("nil cmd", func(t *testing.T) {
+		if b := Batch(nil); b != nil {
+			t.Fatalf("expected nil, got %+v", b)
+		}
+	})
+	t.Run("empty cmd", func(t *testing.T) {
+		if b := Batch(); b != nil {
+			t.Fatalf("expected nil, got %+v", b)
+		}
+	})
+	t.Run("single cmd", func(t *testing.T) {
+		b := Batch(Quit)()
+		if _, ok := b.(QuitMsg); !ok {
+			t.Fatalf("expected a QuitMsg, got %T", b)
+		}
+	})
+	t.Run("mixed nil cmds", func(t *testing.T) {
+		b := Batch(nil, Quit, nil, Quit, nil, nil)()
+		if l := len(b.(BatchMsg)); l != 2 {
+			t.Fatalf("expected a []Cmd with len 2, got %d", l)
+		}
+	})
 }

@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"math/rand"
 	"os"
@@ -11,18 +11,16 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-isatty"
-	"github.com/muesli/reflow/indent"
-	"github.com/muesli/termenv"
 )
 
 var (
-	color = termenv.ColorProfile().Color
+	helpStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render
+	mainStyle = lipgloss.NewStyle().MarginLeft(1)
 )
 
 func main() {
-	rand.Seed(time.Now().UTC().UnixNano())
-
 	var (
 		daemonMode bool
 		showHelp   bool
@@ -43,11 +41,11 @@ func main() {
 		opts = []tea.ProgramOption{tea.WithoutRenderer()}
 	} else {
 		// If we're in TUI mode, discard log output
-		log.SetOutput(ioutil.Discard)
+		log.SetOutput(io.Discard)
 	}
 
 	p := tea.NewProgram(newModel(), opts...)
-	if err := p.Start(); err != nil {
+	if _, err := p.Run(); err != nil {
 		fmt.Println("Error starting Bubble Tea program:", err)
 		os.Exit(1)
 	}
@@ -67,8 +65,11 @@ type model struct {
 func newModel() model {
 	const showLastResults = 5
 
+	sp := spinner.New()
+	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("206"))
+
 	return model{
-		spinner: spinner.NewModel(),
+		spinner: sp,
 		results: make([]result, showLastResults),
 	}
 }
@@ -76,7 +77,7 @@ func newModel() model {
 func (m model) Init() tea.Cmd {
 	log.Println("Starting work...")
 	return tea.Batch(
-		spinner.Tick,
+		m.spinner.Tick,
 		runPretendProcess,
 	)
 }
@@ -103,8 +104,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 	s := "\n" +
-		termenv.String(m.spinner.View()).Foreground(color("206")).String() +
-		" Doing some work...\n\n"
+		m.spinner.View() + " Doing some work...\n\n"
 
 	for _, res := range m.results {
 		if res.duration == 0 {
@@ -114,26 +114,26 @@ func (m model) View() string {
 		}
 	}
 
-	s += termenv.String("\nPress any key to exit\n").Foreground(color("240")).String()
+	s += helpStyle("\nPress any key to exit\n")
 
 	if m.quitting {
 		s += "\n"
 	}
 
-	return indent.String(s, 1)
+	return mainStyle.Render(s)
 }
 
-// processFinishedMsg is send when a pretend process completes.
+// processFinishedMsg is sent when a pretend process completes.
 type processFinishedMsg time.Duration
 
 // pretendProcess simulates a long-running process.
 func runPretendProcess() tea.Msg {
-	pause := time.Duration(rand.Int63n(899)+100) * time.Millisecond
+	pause := time.Duration(rand.Int63n(899)+100) * time.Millisecond // nolint:gosec
 	time.Sleep(pause)
 	return processFinishedMsg(pause)
 }
 
 func randomEmoji() string {
 	emojis := []rune("🍦🧋🍡🤠👾😭🦊🐯🦆🥨🎏🍔🍒🍥🎮📦🦁🐶🐸🍕🥐🧲🚒🥇🏆🌽")
-	return string(emojis[rand.Intn(len(emojis))])
+	return string(emojis[rand.Intn(len(emojis))]) // nolint:gosec
 }

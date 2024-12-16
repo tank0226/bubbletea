@@ -13,14 +13,14 @@ import (
 
 func main() {
 	p := tea.NewProgram(initialModel())
-
-	if err := p.Start(); err != nil {
+	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
 	}
 }
 
-type tickMsg struct{}
-type errMsg error
+type (
+	errMsg error
+)
 
 type model struct {
 	textInput textinput.Model
@@ -28,7 +28,7 @@ type model struct {
 }
 
 func initialModel() model {
-	ti := textinput.NewModel()
+	ti := textinput.New()
 	ti.Placeholder = "Pikachu"
 	ti.Focus()
 	ti.CharLimit = 156
@@ -50,11 +50,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
-		case tea.KeyCtrlC:
-			fallthrough
-		case tea.KeyEsc:
-			fallthrough
-		case tea.KeyEnter:
+		case tea.KeyEnter, tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
 		}
 

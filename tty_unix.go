@@ -1,61 +1,49 @@
-// +build darwin dragonfly freebsd linux netbsd openbsd solaris
+//go:build darwin || dragonfly || freebsd || linux || netbsd || openbsd || solaris || aix || zos
+// +build darwin dragonfly freebsd linux netbsd openbsd solaris aix zos
 
 package tea
 
 import (
-	"errors"
-	"io"
+	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
-	"github.com/containerd/console"
+	"github.com/charmbracelet/x/term"
 )
 
-func (p *Program) initInput() error {
-	if !p.inputIsTTY {
-		return nil
-	}
-
-	// If input's a TTY this should always succeed.
-	f, ok := p.input.(*os.File)
-	if !ok {
-		return errInputIsNotAFile
-	}
-
-	c, err := console.ConsoleFromFile(f)
-	if err != nil {
-		return nil
-	}
-	p.console = c
-
-	return nil
-}
-
-// On unix systems, RestoreInput closes any TTYs we opened for input. Note that
-// we don't do this on Windows as it causes the prompt to not be drawn until the
-// terminal receives a keypress rather than appearing promptly after the program
-// exits.
-func (p *Program) restoreInput() error {
-	if p.inputStatus == managedInput {
-		f, ok := p.input.(*os.File)
-		if !ok {
-			return errors.New("could not close input")
-		}
-		err := f.Close()
+func (p *Program) initInput() (err error) {
+	// Check if input is a terminal
+	if f, ok := p.input.(term.File); ok && term.IsTerminal(f.Fd()) {
+		p.ttyInput = f
+		p.previousTtyInputState, err = term.MakeRaw(p.ttyInput.Fd())
 		if err != nil {
-			return err
+			return fmt.Errorf("error entering raw mode: %w", err)
 		}
 	}
+
+	if f, ok := p.output.(term.File); ok && term.IsTerminal(f.Fd()) {
+		p.ttyOutput = f
+	}
+
 	return nil
 }
 
 func openInputTTY() (*os.File, error) {
 	f, err := os.Open("/dev/tty")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not open a new TTY: %w", err)
 	}
 	return f, nil
 }
 
-// enableAnsiColors is only needed for Windows, so for other systems this is
-// a no-op.
-func enableAnsiColors(_ io.Writer) {}
+const suspendSupported = true
+
+// Send SIGTSTP to the entire process group.
+func suspendProcess() {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGCONT)
+	_ = syscall.Kill(0, syscall.SIGTSTP)
+	// blocks until a CONT happens...
+	<-c
+}
